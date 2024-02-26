@@ -3,7 +3,7 @@
 https://www.nltk.org/_modules/nltk/translate/bleu_score.html
 https://aclanthology.org/P02-1040.pdf
 """
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 from langchain_core.example_selectors import BaseExampleSelector
@@ -52,6 +52,14 @@ class NGramOverlapExampleSelector(BaseExampleSelector, BaseModel):
     example_prompt: PromptTemplate
     """Prompt template used to format the examples."""
 
+    example_key: Optional[str] = None
+    """Optional key to specify which key in the example_prompt to use for ngram
+    overlap score. If not provided, first key in the example_prompt will be used."""
+    
+    input_keys: Optional[List[str]] = None
+    """Optional keys to filter input to. If provided, the search is based on
+    the input variables instead of all variables."""
+
     threshold: float = -1.0
     """Threshold at which algorithm stops. Set to -1.0 by default.
 
@@ -90,15 +98,23 @@ class NGramOverlapExampleSelector(BaseExampleSelector, BaseModel):
         Descending order.
         Excludes any examples with ngram_overlap_score less than or equal to threshold.
         """
-        inputs = list(input_variables.values())
+        if not self.input_keys:
+            inputs = list(input_variables.values())
+        else:
+            inputs = [input_variables[key] for key in self.input_keys]
+
         examples = []
         k = len(self.examples)
         score = [0.0] * k
-        first_prompt_template_key = self.example_prompt.input_variables[0]
+        
+        if self.example_key and self.example_key in self.example_prompt.input_variables:
+            prompt_template_key = self.example_key
+        else:
+            prompt_template_key = self.example_prompt.input_variables[0]
 
         for i in range(k):
             score[i] = ngram_overlap_score(
-                inputs, [self.examples[i][first_prompt_template_key]]
+                inputs, [self.examples[i][prompt_template_key]]
             )
 
         while True:
